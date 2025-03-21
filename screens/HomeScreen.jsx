@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, FlatList, ActivityIndicator, TextInput, Modal, Button } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, FlatList, ActivityIndicator, Button, Modal, TextInput } from 'react-native';
 import { Bell, ChevronRight } from 'lucide-react-native';
-import { createRoom, getRooms } from '../services/ParseService';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getRooms, createRoom, deleteRoom } from '../services/ApiService';
+import { API_URL } from '../services/config';
+import { testApiConnection } from '../services/ApiService';
+
 
 const HomeScreen = ({ navigation }) => {
   const [rooms, setRooms] = useState([]);
@@ -12,19 +14,31 @@ const HomeScreen = ({ navigation }) => {
   const [roomTheme, setRoomTheme] = useState('');
 
   useEffect(() => {
+    testApiConnection();
     fetchRooms();
   }, []);
 
   const fetchRooms = async () => {
+    console.log("Отправка запроса на API...");
     setLoading(true);
-    const fetchedRooms = await getRooms();
-    setRooms(fetchedRooms);
+    
+    const response = await getRooms(API_URL);
+    console.log("Ответ API:", response);
+    
+    // Проверяем структуру ответа и извлекаем массив комнат
+    if (response && response.rooms) {
+      setRooms(response.rooms); // Используем response.rooms вместо всего объекта
+    } else {
+      setRooms([]); // Если данных нет, устанавливаем пустой массив
+    }
+    
     setLoading(false);
   };
+  
 
   const handleCreateRoom = async () => {
     if (roomName.trim() && roomTheme.trim()) {
-      const newRoom = await createRoom(roomName, roomTheme);
+      const newRoom = await createRoom( roomName, roomTheme);
       if (newRoom) {
         fetchRooms();
         setModalVisible(false);
@@ -34,6 +48,11 @@ const HomeScreen = ({ navigation }) => {
     } else {
       alert('Пожалуйста, заполните все поля');
     }
+  };
+
+  const handleDeleteRoom = async (roomId) => {
+    await deleteRoom(API_URL, roomId);
+    fetchRooms();
   };
 
   const renderRoom = ({ item }) => (

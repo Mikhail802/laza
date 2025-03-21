@@ -1,9 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput, Modal, Button } from 'react-native';
 import { ChevronLeft } from 'lucide-react-native';
+import { getColumns, createColumn, createTask } from '../services/ApiService';
+import { API_URL } from '../services/config';
+
 
 const RoomScreen = ({ route, navigation }) => {
-  const { roomName } = route.params;
+  const { roomId, roomName } = route.params;
   const [columns, setColumns] = useState([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [columnModalVisible, setColumnModalVisible] = useState(false);
@@ -11,37 +14,44 @@ const RoomScreen = ({ route, navigation }) => {
   const [taskText, setTaskText] = useState('');
   const [columnName, setColumnName] = useState('');
 
-  const addColumn = () => {
-    setColumnModalVisible(true);
+  useEffect(() => {
+    fetchColumns();
+  }, []);
+
+  const fetchColumns = async () => {
+    const fetchedColumns = await getColumns(roomId);
+    setColumns(fetchedColumns);
   };
 
-  const handleAddColumn = () => {
+  const handleAddColumn = async () => {
     if (columnName.trim()) {
-      const newColumn = {
-        id: `${columns.length + 1}`,
-        title: columnName,
-        tasks: [],
-      };
-      setColumns([...columns, newColumn]);
-      setColumnName('');
-      setColumnModalVisible(false);
+      console.log("Создаём колонку для комнаты:", roomId, columnName);
+      const newColumn = await createColumn(roomId, columnName);
+      if (newColumn) {
+        fetchColumns();
+        setColumnName('');
+        setColumnModalVisible(false);
+      }
     } else {
       alert('Пожалуйста, введите название колонки');
     }
   };
+  
 
-  const addTask = (columnId) => {
-    const updatedColumns = columns.map(column => {
-      if (column.id === columnId) {
-        const newTask = { id: `${column.tasks.length + 1}`, text: taskText, description: '' };
-        return { ...column, tasks: [...column.tasks, newTask] };
+  const handleAddTask = async () => {
+    if (taskText.trim() && selectedColumnId) {
+      console.log("Создаём задачу для колонки:", selectedColumnId, taskText);
+      const newTask = await createTask(selectedColumnId, taskText);
+      if (newTask) {
+        fetchColumns();
+        setTaskText('');
+        setModalVisible(false);
       }
-      return column;
-    });
-    setColumns(updatedColumns);
-    setTaskText('');
-    setModalVisible(false);
+    } else {
+      alert('Пожалуйста, введите текст задачи');
+    }
   };
+  
 
   const renderColumn = (column) => (
     <View style={styles.column} key={column.id}>
@@ -77,7 +87,7 @@ const RoomScreen = ({ route, navigation }) => {
       </View>
       <ScrollView horizontal style={styles.columnsContainer}>
         {columns.map(renderColumn)}
-        <TouchableOpacity style={styles.addColumnButton} onPress={addColumn}>
+        <TouchableOpacity style={styles.addColumnButton} onPress={() => setColumnModalVisible(true)}>
           <Text style={styles.addColumnText}>Добавить колонку</Text>
         </TouchableOpacity>
       </ScrollView>
@@ -99,7 +109,7 @@ const RoomScreen = ({ route, navigation }) => {
             />
             <View style={styles.modalButtons}>
               <Button title="Отмена" onPress={() => setModalVisible(false)} />
-              <Button title="Добавить" onPress={() => addTask(selectedColumnId)} />
+              <Button title="Добавить" onPress={handleAddTask} />
             </View>
           </View>
         </View>

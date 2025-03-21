@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, TextInput, Button, Modal } from 'react-native';
-import { getTasks, createTask, updateTask, deleteTask } from '../services/ParseService';
+import { getTasks, createTask, updateTask, deleteTask } from '../services/ApiService';
+import { API_URL } from '../services/config';
 
 const TaskManagementScreen = ({ route, navigation }) => {
   const { roomId } = route.params;
@@ -14,13 +15,13 @@ const TaskManagementScreen = ({ route, navigation }) => {
   }, []);
 
   const fetchTasks = async () => {
-    const fetchedTasks = await getTasks(roomId);
+    const fetchedTasks = await getTasks(API_URL, roomId);
     setTasks(fetchedTasks);
   };
 
   const handleCreateTask = async () => {
     if (taskText.trim()) {
-      await createTask(roomId, taskText);
+      await createTask(API_URL, roomId, taskText);
       fetchTasks();
       setTaskText('');
       setModalVisible(false);
@@ -31,7 +32,7 @@ const TaskManagementScreen = ({ route, navigation }) => {
 
   const handleEditTask = async () => {
     if (taskText.trim()) {
-      await updateTask(editingTask.id, taskText);
+      await updateTask(API_URL, editingTask.id, taskText);
       fetchTasks();
       setTaskText('');
       setEditingTask(null);
@@ -42,7 +43,7 @@ const TaskManagementScreen = ({ route, navigation }) => {
   };
 
   const handleDeleteTask = async (taskId) => {
-    await deleteTask(taskId);
+    await deleteTask(API_URL, taskId);
     fetchTasks();
   };
 
@@ -154,4 +155,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default TaskManagementScreen;
+export default TaskManagementScreen;  

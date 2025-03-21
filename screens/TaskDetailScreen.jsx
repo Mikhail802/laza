@@ -1,147 +1,224 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, Button, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { X, Plus, Save, CheckSquare, Square, User, Calendar, ChevronDown, ChevronUp, GripVertical } from 'lucide-react-native';
+import { getTasks, updateTasks } from '../services/ApiService';
 
 const TaskDetailScreen = ({ route, navigation }) => {
-  const { task } = route.params;
-  const [assignedUser, setAssignedUser] = useState('');
-  const [startDate, setStartDate] = useState(new Date());
-  const [endDate, setEndDate] = useState(new Date());
-  const [description, setDescription] = useState(task.description || '');
+  const { taskId } = route.params || {};  
+  const [taskDetails, setTaskDetails] = useState({ taskLists: [] });
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [newTaskListName, setNewTaskListName] = useState('');
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
-  const [showStartTimePicker, setShowStartTimePicker] = useState(false);
-  const [showEndTimePicker, setShowEndTimePicker] = useState(false);
+  const [startDate, setStartDate] = useState(null);
+  const [endDate, setEndDate] = useState(null);
+  const [expandedLists, setExpandedLists] = useState({});
 
-  const handleSave = () => {
-    // Сохранение изменений задачи
-    // Здесь можно добавить логику для сохранения изменений в задаче
-    navigation.goBack();
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const data = await getTasks(taskId);
+        if (data) {
+          setTaskDetails({
+            ...data,
+            taskLists: Array.isArray(data.taskLists) ? data.taskLists : [],
+          });
+          setTitle(data.text || '');
+          setDescription(data.description || '');
+          setStartDate(data.startDate ? new Date(data.startDate) : null);
+          setEndDate(data.endDate ? new Date(data.endDate) : null);
+        }
+      } catch (error) {
+        console.error('Ошибка загрузки данных:', error);
+      }
+    };
+    fetchData();
+  }, [taskId]);
+
+  const saveTaskData = async () => {
+    try {
+      await updateTasks(taskId, {
+        text: title,
+        description,
+        startDate,
+        endDate,
+        taskLists: taskDetails.taskLists || [],
+      });
+      navigation.goBack();
+    } catch (error) {
+      console.error('Ошибка сохранения задачи:', error);
+    }
   };
 
-  const onStartDateChange = (event, selectedDate) => {
-    const currentDate = selectedDate || startDate;
-    setShowStartDatePicker(false);
-    setStartDate(currentDate);
+
+  const handleAddTaskList = () => {
+    const newList = { 
+      id: Date.now().toString(), 
+      name: '', 
+      items: [] 
+    };
+
+    const updatedLists = [...taskDetails.taskLists, newList];
+
+    setTaskDetails((prev) => ({
+      ...prev,
+      taskLists: updatedLists
+    }));
+
+    setExpandedLists((prev) => ({
+      ...prev,
+      [updatedLists.length - 1]: true
+    }));
   };
 
-  const onEndDateChange = (event, selectedDate) => {
-    const currentDate = selectedDate || endDate;
-    setShowEndDatePicker(false);
-    setEndDate(currentDate);
+  const handleUpdateTaskListName = (listId, name) => {
+    const updatedLists = taskDetails.taskLists.map((list) => {
+      if (list.id === listId) {
+        return {
+          ...list,
+          name,
+        };
+      }
+      return list;
+    });
+    setTaskDetails({ ...taskDetails, taskLists: updatedLists });
   };
 
-  const onStartTimeChange = (event, selectedTime) => {
-    const currentTime = selectedTime || startDate;
-    setShowStartTimePicker(false);
-    setStartDate(currentTime);
+  const handleAddListItem = (listId) => {
+    const updatedLists = taskDetails.taskLists.map((list) => {
+      if (list.id === listId) {
+        return {
+          ...list,
+          items: [...list.items, { id: Date.now().toString(), text: 'Новый элемент', completed: false }],
+        };
+      }
+      return list;
+    });
+    setTaskDetails({ ...taskDetails, taskLists: updatedLists });
   };
 
-  const onEndTimeChange = (event, selectedTime) => {
-    const currentTime = selectedTime || endDate;
-    setShowEndTimePicker(false);
-    setEndDate(currentTime);
+  const handleToggleItem = (listId, itemId) => {
+    const updatedLists = taskDetails.taskLists.map((list) => {
+      if (list.id === listId) {
+        return {
+          ...list,
+          items: list.items.map((item) =>
+            item.id === itemId ? { ...item, completed: !item.completed } : item
+          ),
+        };
+      }
+      return list;
+    });
+    setTaskDetails({ ...taskDetails, taskLists: updatedLists });
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Детали задачи</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="Назначить пользователя"
-        value={assignedUser}
-        onChangeText={setAssignedUser}
-      />
-      <Text style={styles.label}>Начало задачи:</Text>
-      <TouchableOpacity onPress={() => setShowStartDatePicker(true)}>
-        <Text style={styles.dateText}>{startDate.toDateString()}</Text>
+    <ScrollView style={styles.container}>
+      {/* Верхний заголовок */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <X size={28} color="#000" />
+        </TouchableOpacity>
+        <TextInput style={styles.taskTitle} value={title} onChangeText={setTitle} placeholder="Название задачи" />
+        <TouchableOpacity onPress={saveTaskData}>
+          <Save size={28} color="#007bff" />
+        </TouchableOpacity>
+      </View>
+
+      <Text style={styles.columnName}><Text style={styles.italic}>в списке</Text> "Название колонки"</Text>
+
+      {/* Описание */}
+      <TextInput style={styles.descriptionInput} placeholder="Добавить описание карточки..." value={description} onChangeText={setDescription} multiline />
+
+      {/* Участники */}
+      <TouchableOpacity style={styles.optionButton}>
+        <User size={20} color="#007bff" />
+        <Text style={styles.optionText}>Участники...</Text>
       </TouchableOpacity>
-      {showStartDatePicker && (
-        <DateTimePicker
-          value={startDate}
-          mode="date"
-          display="default"
-          onChange={onStartDateChange}
-        />
-      )}
-      <TouchableOpacity onPress={() => setShowStartTimePicker(true)}>
-        <Text style={styles.dateText}>{startDate.toLocaleTimeString()}</Text>
+
+      {/* Даты */}
+      <TouchableOpacity style={styles.optionButton} onPress={() => setShowStartDatePicker(true)}>
+        <Calendar size={20} color="#007bff" />
+        <Text style={styles.optionText}>Начало...</Text>
       </TouchableOpacity>
-      {showStartTimePicker && (
-        <DateTimePicker
-          value={startDate}
-          mode="time"
-          display="default"
-          onChange={onStartTimeChange}
-        />
-      )}
-      <Text style={styles.label}>Конец задачи:</Text>
-      <TouchableOpacity onPress={() => setShowEndDatePicker(true)}>
-        <Text style={styles.dateText}>{endDate.toDateString()}</Text>
+      {showStartDatePicker && <DateTimePicker value={startDate || new Date()} mode="date" display="default" onChange={(event, date) => { setShowStartDatePicker(false); if (date) setStartDate(date); }} />}
+      
+      <TouchableOpacity style={styles.optionButton} onPress={() => setShowEndDatePicker(true)}>
+        <Calendar size={20} color="#ff4500" />
+        <Text style={styles.optionText}>Дата выполнения...</Text>
       </TouchableOpacity>
-      {showEndDatePicker && (
-        <DateTimePicker
-          value={endDate}
-          mode="date"
-          display="default"
-          onChange={onEndDateChange}
-        />
-      )}
-      <TouchableOpacity onPress={() => setShowEndTimePicker(true)}>
-        <Text style={styles.dateText}>{endDate.toLocaleTimeString()}</Text>
-      </TouchableOpacity>
-      {showEndTimePicker && (
-        <DateTimePicker
-          value={endDate}
-          mode="time"
-          display="default"
-          onChange={onEndTimeChange}
-        />
-      )}
-      <TextInput
-        style={[styles.input, styles.textArea]}
-        placeholder="Описание задачи"
-        value={description}
-        onChangeText={setDescription}
-        multiline
-      />
-      <Button title="Сохранить" onPress={handleSave} />
-    </View>
+      {showEndDatePicker && <DateTimePicker value={endDate || new Date()} mode="date" display="default" onChange={(event, date) => { setShowEndDatePicker(false); if (date) setEndDate(date); }} />}
+
+      {/* Списки задач */}
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>Списки задач</Text>
+        <TouchableOpacity onPress={handleAddTaskList}>
+          <Plus size={20} color="#007bff" />
+        </TouchableOpacity>
+      </View>
+
+      {/* Вывод всех списков задач */}
+      {taskDetails.taskLists.map((list, index) => (
+        <View key={list.id} style={styles.taskList}>
+          {/* Заголовок списка задач */}
+          <View style={styles.taskListHeader}>
+            <TouchableOpacity onPress={() => setExpandedLists({ ...expandedLists, [index]: !expandedLists[index] })}>
+              {expandedLists[index] ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+            </TouchableOpacity>
+            <TextInput
+              style={styles.taskListTitle}
+              placeholder="Название списка"
+              value={list.name}
+              onChangeText={(text) => handleUpdateTaskListName(list.id, text)}
+            />
+            <GripVertical size={20} color="#666" />
+          </View>
+
+          {/* Элементы списка задач */}
+          {expandedLists[index] && (
+            <>
+              {list.items.map((item) => (
+                <View key={item.id} style={styles.listItem}>
+                  <TouchableOpacity onPress={() => handleToggleItem(list.id, item.id)}>
+                    {item.completed ? <CheckSquare size={18} color="green" /> : <Square size={18} color="gray" />}
+                  </TouchableOpacity>
+                  <Text style={[styles.listItemText, item.completed && styles.completedText]}>{item.text}</Text>
+                  <GripVertical size={20} color="#666" />
+                </View>
+              ))}
+              <TouchableOpacity style={styles.addButton} onPress={() => handleAddListItem(list.id)}>
+                <Plus size={16} color="#007bff" />
+                <Text style={styles.addText}>Добавить элемент</Text>
+              </TouchableOpacity>
+            </>
+          )}
+        </View>
+      ))}
+    </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 20,
-    backgroundColor: '#fff',
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 20,
-  },
-  input: {
-    height: 40,
-    borderColor: '#ccc',
-    borderWidth: 1,
-    marginBottom: 10,
-    padding: 10,
-    borderRadius: 5,
-  },
-  textArea: {
-    height: 100,
-  },
-  label: {
-    fontSize: 16,
-    marginBottom: 5,
-  },
-  dateText: {
-    fontSize: 16,
-    color: '#000',
-    marginBottom: 10,
-    textDecorationLine: 'underline',
-  },
+  container: { flex: 1, backgroundColor: '#fff', padding: 20 },
+  header: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
+  taskTitle: { fontSize: 22, fontWeight: 'bold', flex: 1, marginLeft: 10 },
+  columnName: { fontSize: 16, color: 'gray', marginBottom: 10 },
+  descriptionInput: { borderWidth: 1, borderColor: '#ddd', padding: 8, borderRadius: 5, minHeight: 50 },
+  optionButton: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10 },
+  optionText: { fontSize: 16, marginLeft: 10 },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
+  sectionTitle: { fontSize: 16, fontWeight: 'bold' },
+  input: { borderWidth: 1, borderColor: '#ddd', padding: 8, borderRadius: 5, marginBottom: 10 },
+  addButton: { flexDirection: 'row', alignItems: 'center', marginTop: 10 },
+  addText: { fontSize: 16, marginLeft: 5, color: '#007bff' },
+  taskList: { backgroundColor: '#f3f3f3', padding: 10, borderRadius: 8, marginTop: 10 },
+  taskListHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  taskListTitle: { fontSize: 18, fontWeight: 'bold', flex: 1, marginLeft: 10 },
+  listItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 5, marginLeft: 10 },
+  listItemText: { fontSize: 16, marginLeft: 10, flex: 1 },
+  completedText: { textDecorationLine: 'line-through', color: 'gray' },
 });
 
 export default TaskDetailScreen;
